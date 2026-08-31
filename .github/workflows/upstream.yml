@@ -24,7 +24,10 @@ jobs:
           set -euo pipefail
 
           formula=Formula/kitty.rb
-          current="$(sed -n 's|.*/releases/download/v\([0-9.]*\)/.*|\1|p' "$formula")"
+          # NOTE: Anchor on the formula's own `url` line. The nerd-fonts
+          # resource is another releases/download/v... URL, and matching it too
+          # makes $current two lines, which breaks the sed calls below.
+          current="$(sed -n 's|^  url "https://github.com/kovidgoyal/kitty/releases/download/v\([0-9.]*\)/.*|\1|p' "$formula")"
           latest="$(gh release view --repo kovidgoyal/kitty --json tagName --jq '.tagName' | sed 's/^v//')"
           echo "current=$current latest=$latest"
 

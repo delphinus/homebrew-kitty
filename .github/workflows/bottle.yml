@@ -26,21 +26,21 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
-        with:
-          path: homebrew-kitty
-
       - uses: Homebrew/actions/setup-homebrew@master
 
-      # NOTE: brew wants the tap inside its own Taps directory. Symlinking the
-      # checkout keeps `brew bottle --merge --write` editing the working tree we
-      # later commit from.
-      - name: Tap the checkout
+      # NOTE: Do not symlink a checkout into Library/Taps. brew does not pick
+      # such a tap up (`brew tap` does not list it), so let brew clone the tap
+      # itself and move it to the revision under test.
+      - name: Tap the revision under test
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          tap_dir="$(brew --repository)/Library/Taps/delphinus/homebrew-kitty"
-          mkdir -p "$(dirname "$tap_dir")"
-          ln -sfn "$GITHUB_WORKSPACE/homebrew-kitty" "$tap_dir"
-          brew tap
+          brew tap delphinus/kitty
+          tap_dir="$(brew --repository delphinus/kitty)"
+          echo "TAP_DIR=$tap_dir" >> "$GITHUB_ENV"
+          git -C "$tap_dir" fetch origin "$SHA"
+          git -C "$tap_dir" checkout --detach "$SHA"
+          git -C "$tap_dir" log --oneline -1
 
       - name: Read the formula version
         id: formula
@@ -91,9 +91,11 @@ jobs:
 
       - name: Write the checksums back into the formula
         if: github.event_name != 'pull_request'
-        working-directory: homebrew-kitty
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          brew bottle --merge --write --no-commit ../kitty--*.bottle.json
+          brew bottle --merge --write --no-commit ./kitty--*.bottle.json
+          cd "$TAP_DIR"
           git diff --stat
           if git diff --quiet; then
             echo 'formula unchanged, nothing to commit'
@@ -101,5 +103,7 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote set-url origin \
+            "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
           git commit -am 'kitty ${{ steps.formula.outputs.version }}: add arm64_tahoe bottle [skip ci]'
           git push origin HEAD:main

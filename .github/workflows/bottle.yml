@@ -1,0 +1,105 @@
+name: Bottle
+
+on:
+  pull_request:
+    paths:
+      - Formula/**
+      - .github/workflows/bottle.yml
+  push:
+    branches:
+      - main
+    paths:
+      - Formula/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bottle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bottle:
+    # NOTE: macos-26 is the arm64 image. The bottle tag it produces is
+    # arm64_tahoe, which is what both of my machines want.
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: homebrew-kitty
+
+      - uses: Homebrew/actions/setup-homebrew@master
+
+      # NOTE: brew wants the tap inside its own Taps directory. Symlinking the
+      # checkout keeps `brew bottle --merge --write` editing the working tree we
+      # later commit from.
+      - name: Tap the checkout
+        run: |
+          tap_dir="$(brew --repository)/Library/Taps/delphinus/homebrew-kitty"
+          mkdir -p "$(dirname "$tap_dir")"
+          ln -sfn "$GITHUB_WORKSPACE/homebrew-kitty" "$tap_dir"
+          brew tap
+
+      - name: Read the formula version
+        id: formula
+        run: |
+          version="$(brew info --json=v2 delphinus/kitty/kitty |
+            jq -r '.formulae[0].versions.stable')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=kitty-$version" >> "$GITHUB_OUTPUT"
+
+      # NOTE: This is where a patch that no longer applies shows up, so it runs
+      # on pull_request too.
+      - name: Build from source
+        run: brew install --build-from-source --verbose delphinus/kitty/kitty
+
+      - name: Test
+        run: brew test delphinus/kitty/kitty
+
+      - name: Audit
+        run: brew audit --strict --online delphinus/kitty/kitty || true
+
+      - name: Build the bottle
+        if: github.event_name != 'pull_request'
+        run: |
+          brew bottle --json --no-rebuild \
+            --root-url="https://github.com/${{ github.repository }}/releases/download/${{ steps.formula.outputs.tag }}" \
+            delphinus/kitty/kitty
+          # NOTE: brew writes `name--version...` but downloads `name-version...`
+          # (Bottle::Filename#url_encode). Copy under the name brew will ask for
+          # or the bottle 404s. Copy rather than move: the json still refers to
+          # the original name and `--merge` runs after this.
+          for f in kitty--*.bottle.tar.gz; do
+            cp "$f" "${f/--/-}"
+          done
+          ls -la kitty-*
+
+      - name: Upload the bottle to a release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ steps.formula.outputs.tag }}'
+          gh release view "$tag" --repo '${{ github.repository }}' >/dev/null 2>&1 ||
+            gh release create "$tag" --repo '${{ github.repository }}' \
+              --title "$tag" --notes 'Bottles for kitty ${{ steps.formula.outputs.version }}.'
+          # NOTE: kitty-[0-9]* so the `kitty--...` original is not uploaded too.
+          gh release upload "$tag" --repo '${{ github.repository }}' --clobber \
+            kitty-[0-9]*.bottle.tar.gz
+
+      - name: Write the checksums back into the formula
+        if: github.event_name != 'pull_request'
+        working-directory: homebrew-kitty
+        run: |
+          brew bottle --merge --write --no-commit ../kitty--*.bottle.json
+          git diff --stat
+          if git diff --quiet; then
+            echo 'formula unchanged, nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am 'kitty ${{ steps.formula.outputs.version }}: add arm64_tahoe bottle [skip ci]'
+          git push origin HEAD:main

@@ -1,0 +1,74 @@
+name: Upstream
+
+on:
+  schedule:
+    # NOTE: kitty ships a release every 13 days on average, so daily is plenty.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bump the formula if upstream has a newer release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          formula=Formula/kitty.rb
+          current="$(sed -n 's|.*/releases/download/v\([0-9.]*\)/.*|\1|p' "$formula")"
+          latest="$(gh release view --repo kovidgoyal/kitty --json tagName --jq '.tagName' | sed 's/^v//')"
+          echo "current=$current latest=$latest"
+
+          if [ "$current" = "$latest" ]; then
+            echo 'already up to date'
+            exit 0
+          fi
+
+          branch="kitty-$latest"
+          if gh api "repos/$GITHUB_REPOSITORY/branches/$branch" >/dev/null 2>&1; then
+            echo "branch $branch already exists"
+            exit 0
+          fi
+
+          url="https://github.com/kovidgoyal/kitty/releases/download/v$latest/kitty-$latest.tar.xz"
+          curl -fsSL -o /tmp/kitty.tar.xz "$url"
+          sha="$(sha256sum /tmp/kitty.tar.xz | cut -d' ' -f1)"
+
+          # NOTE: The bottle block belongs to the old version. Drop it here and
+          # let bottle.yml write a fresh one after this lands on main.
+          perl -0pi -e 's/\n  bottle do\n.*?\n  end\n//s' "$formula"
+          sed -i "s|releases/download/v$current/kitty-$current.tar.xz|releases/download/v$latest/kitty-$latest.tar.xz|" "$formula"
+          sed -i "0,/^  sha256 \"/s|^  sha256 \".*\"|  sha256 \"$sha\"|" "$formula"
+          git diff -- "$formula"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git commit -am "kitty $latest"
+          git push origin "$branch"
+
+          gh pr create --base main --head "$branch" \
+            --title "kitty $latest" \
+            --body "$(cat <<EOF
+          Upstream released [v$latest](https://github.com/kovidgoyal/kitty/releases/tag/v$latest).
+
+          The CI on this PR builds from source, so **if the Nerd Font patches no
+          longer apply, this is where it shows up**. Fix them on the
+          \`fix/nerd-font-symbol-cell-sizing\` branch of
+          [delphinus/kitty](https://github.com/delphinus/kitty), then update the
+          \`patch\` stanzas here.
+
+          The bottle block was removed because it belongs to $current. Merging
+          this triggers \`bottle.yml\`, which builds an \`arm64_tahoe\` bottle and
+          writes the checksum back to main.
+          EOF
+          )"

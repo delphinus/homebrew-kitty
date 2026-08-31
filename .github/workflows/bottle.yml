@@ -51,9 +51,11 @@ jobs:
           echo "tag=kitty-$version" >> "$GITHUB_OUTPUT"
 
       # NOTE: This is where a patch that no longer applies shows up, so it runs
-      # on pull_request too.
+      # on pull_request too. --build-bottle rather than --build-from-source:
+      # `brew bottle` refuses a keg that was not built with it. It only skips
+      # post_install, the keg is still linked, so `brew test` works either way.
       - name: Build from source
-        run: brew install --build-from-source --verbose delphinus/kitty/kitty
+        run: brew install --build-bottle --verbose delphinus/kitty/kitty
 
       - name: Test
         run: brew test delphinus/kitty/kitty

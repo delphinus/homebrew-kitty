@@ -6,19 +6,14 @@
 class Kitty < Formula
   desc "GPU-based terminal emulator, patched for non-mono Nerd Fonts"
   homepage "https://github.com/kovidgoyal/kitty"
-  url "https://github.com/kovidgoyal/kitty/releases/download/v0.48.2/kitty-0.48.2.tar.xz"
-  sha256 "792a2bbde715bb26839677875a44202f1c30e91a20351842e0a61b5c6a1e666e"
+  url "https://github.com/kovidgoyal/kitty/releases/download/v0.49.0/kitty-0.49.0.tar.xz"
+  sha256 "b8b51901a4a5545a3b49241b6ea2050dbae509dfabd60ffcdb598a3a1344ec9a"
   license "GPL-3.0-only"
 
   livecheck do
     url "https://github.com/kovidgoyal/kitty/releases/latest"
     strategy :header_match
     regex(%r{tag/v?(\d+(?:\.\d+)+)}i)
-  end
-
-  bottle do
-    root_url "https://github.com/delphinus/homebrew-kitty/releases/download/kitty-0.48.2"
-    sha256 cellar: :any, arm64_tahoe: "0cc43f86dab4b8ca6cf628197c9051d8ab2691d19cd5c1cadbb693f0b6a6edf7"
   end
 
   depends_on "go" => :build

@@ -94,9 +94,18 @@ class Kitty < Formula
     system formula_opt_bin("python@3.14")/"python3.14", "setup.py", "kitty.app"
 
     (buildpath/"kitty.app/Contents/Resources/kitty/shaders").install Dir["shaders/*"]
+
+    # Custom shaders are compiled while kitty runs, and kitty looks slangc up in
+    # PATH unless $SLANGC says otherwise. A kitty started from the Dock inherits
+    # only /usr/bin:/bin:/usr/sbin:/sbin from launchd and so finds neither, and
+    # reports "No such file or directory: 'slangc'" for every shader. Name it in
+    # the bundle instead. The opt path keeps this valid while the app runs
+    # through an upgrade.
+    plist = buildpath/"kitty.app/Contents/Info.plist"
+    system "/usr/libexec/PlistBuddy", "-c",
+           "Add :LSEnvironment:SLANGC string #{opt_libexec}/bin/slangc", plist
+
     prefix.install "kitty.app"
-    # Custom shaders are compiled when kitty starts, so slangc has to stay
-    # reachable. kitty looks it up in PATH unless $SLANGC says otherwise.
     bin.install_symlink libexec/"bin/slangc"
     bin.install_symlink prefix/"kitty.app/Contents/MacOS/kitty"
     bin.install_symlink prefix/"kitty.app/Contents/MacOS/kitten"

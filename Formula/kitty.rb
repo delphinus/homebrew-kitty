@@ -18,7 +18,7 @@ class Kitty < Formula
 
   bottle do
     root_url "https://github.com/delphinus/homebrew-kitty/releases/download/kitty-0.49.0"
-    sha256 cellar: :any, arm64_tahoe: "8308125d78590fc3f0bc33266485ed60aa61c16073af3dd09b4462ab0a8a7b35"
+    sha256 cellar: :any, arm64_tahoe: "7ba725e17237d986155b30ca81c1f2567551bec0918ed8d48ba9aa19165b8151"
   end
 
   depends_on "go" => :build

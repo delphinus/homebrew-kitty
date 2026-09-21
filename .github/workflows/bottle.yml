@@ -26,7 +26,9 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
-      - uses: Homebrew/actions/setup-homebrew@master
+      # NOTE: Homebrew/actions renamed its default branch to main and deleted
+      # master, so @master stopped resolving.
+      - uses: Homebrew/actions/setup-homebrew@main
 
       # NOTE: Do not symlink a checkout into Library/Taps. brew does not pick
       # such a tap up (`brew tap` does not list it), so let brew clone the tap

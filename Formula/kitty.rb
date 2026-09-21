@@ -19,6 +19,8 @@ class Kitty < Formula
   depends_on "go" => :build
   depends_on "pkgconf" => :build
   depends_on "simde" => :build
+  # The slang resource below is the aarch64 build.
+  depends_on arch: :arm64
   depends_on "harfbuzz"
   depends_on "libpng"
   depends_on "little-cms2"
@@ -31,6 +33,15 @@ class Kitty < Formula
   resource "symbols-nerd-font" do
     url "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/NerdFontsSymbolsOnly.zip"
     sha256 "fdca3682534f6f65e1ccb2345b0362ccf67d9b8eca7c8025330946e93e2473bc"
+  end
+
+  # 0.49 compiles kitty's shaders with the Slang compiler, and needs it again at
+  # runtime for custom shaders. Homebrew has no shader-slang formula, so take
+  # the upstream binary release, as kitty's own CI does. The version is the one
+  # pinned in kitty's bypy/sources.json.
+  resource "slang" do
+    url "https://github.com/shader-slang/slang/releases/download/v2026.14.1/slang-2026.14.1-macos-aarch64.tar.gz"
+    sha256 "92da7ab6226dd951037cd85397f830ae78fe40fbbb8928882e0b2654e468fdd4"
   end
 
   # Decide the number of cells a symbol needs from its advance as well as its
@@ -51,9 +62,37 @@ class Kitty < Formula
       (buildpath/"fonts").install "SymbolsNerdFontMono-Regular.ttf"
     end
 
+    # slangc finds its dylibs through @loader_path/../lib, so keep the layout.
+    # libslang-llvm.dylib is 102MB and only serves the CPU and host targets,
+    # which kitty never asks for: it compiles to GLSL.
+    resource("slang").stage do
+      libexec.install "bin"
+      (libexec/"lib").install Dir["lib/*.dylib"] - ["lib/libslang-llvm.dylib"]
+      (libexec/"lib").install Dir["lib/slang-standard-module-*"]
+    end
+    # Homebrew rewrites the install names in the dylibs, which invalidates their
+    # signatures, so it signs them ad-hoc again. The binaries keep the vendor
+    # signature, and dyld refuses to map an ad-hoc dylib into a process with a
+    # Team ID. Sign the binaries ad-hoc too, so that the whole set agrees.
+    libexec.glob("bin/*").each do |f|
+      system "codesign", "--force", "--sign", "-", f if f.mach_o_executable?
+    end
+    ENV["SLANGC"] = libexec/"bin/slangc"
+
+    # NOTE: setup.py copies the compiled shaders into the bundle before the
+    # step that compiles them (package() copies, then create_macos_bundle_gunk
+    # -> build_static_kittens -> build_shaders compiles), so on a clean tree the
+    # copy dies with FileNotFoundError. Hand it an empty directory and install
+    # the real shaders afterwards.
+    (buildpath/"shaders").mkpath
+
     system formula_opt_bin("python@3.14")/"python3.14", "setup.py", "kitty.app"
 
+    (buildpath/"kitty.app/Contents/Resources/kitty/shaders").install Dir["shaders/*"]
     prefix.install "kitty.app"
+    # Custom shaders are compiled when kitty starts, so slangc has to stay
+    # reachable. kitty looks it up in PATH unless $SLANGC says otherwise.
+    bin.install_symlink libexec/"bin/slangc"
     bin.install_symlink prefix/"kitty.app/Contents/MacOS/kitty"
     bin.install_symlink prefix/"kitty.app/Contents/MacOS/kitten"
     man1.install Dir["docs/_build/man/*.1"]

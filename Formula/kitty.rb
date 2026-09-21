@@ -36,14 +36,14 @@ class Kitty < Formula
   # Decide the number of cells a symbol needs from its advance as well as its
   # ink, so that non-mono Nerd Font glyphs are not shrunk into one cell.
   patch do
-    url "https://github.com/delphinus/kitty/commit/6e7a72a02def30ff075b38688572310830e65001.patch?full_index=1"
-    sha256 "08880ee151bc529b1f4483043355fb5d6fcecd8a8e269cb4a1961ac72c5e16c7"
+    url "https://github.com/delphinus/kitty/commit/b787020b92e2f4ef7a7cf1147ebfd963de73637d.patch?full_index=1"
+    sha256 "729b97f0522c60103f753d8915f266047882d121151d3ed0a0715373b9339f44"
   end
 
   # Move rather than shrink a glyph whose ink already fits the cells available.
   patch do
-    url "https://github.com/delphinus/kitty/commit/2d47a99972a98a9c178e373adee58a14f124d589.patch?full_index=1"
-    sha256 "1bda71d82852ae49f4c3d5ce7d95756cce9191de1239e325564e03e5dd97abce"
+    url "https://github.com/delphinus/kitty/commit/156480852c698d3bfe5950ec7cb3a632db877378.patch?full_index=1"
+    sha256 "b958b8c3a21d922572c6760dfd83dbd89b7feb0037d0ad79403131eb12fbb7b9"
   end
 
   def install

@@ -94,9 +94,27 @@ class Kitty < Formula
     system formula_opt_bin("python@3.14")/"python3.14", "setup.py", "kitty.app"
 
     (buildpath/"kitty.app/Contents/Resources/kitty/shaders").install Dir["shaders/*"]
+
+    # NOTE: setup.py copies the source tree into the bundle through a filter
+    # that allows py, slang, glsl and so, which drops every .pipeline file that
+    # ships with kitty. A shader named on custom_shaders then loads with a
+    # constructed pipeline rather than the one upstream wrote for it, and the
+    # names that exist only as a pipeline (dim-inactive-windows, crt-blue) do
+    # not resolve at all.
+    (buildpath/"kitty.app/Contents/Resources/kitty/kitty/shaders/custom")
+      .install Dir["kitty/shaders/custom/*.pipeline"]
+
+    # Custom shaders are compiled while kitty runs, and kitty looks slangc up in
+    # PATH unless $SLANGC says otherwise. A kitty started from the Dock inherits
+    # only /usr/bin:/bin:/usr/sbin:/sbin from launchd and so finds neither, and
+    # reports "No such file or directory: 'slangc'" for every shader. Name it in
+    # the bundle instead. The opt path keeps this valid while the app runs
+    # through an upgrade.
+    plist = buildpath/"kitty.app/Contents/Info.plist"
+    system "/usr/libexec/PlistBuddy", "-c",
+           "Add :LSEnvironment:SLANGC string #{opt_libexec}/bin/slangc", plist
+
     prefix.install "kitty.app"
-    # Custom shaders are compiled when kitty starts, so slangc has to stay
-    # reachable. kitty looks it up in PATH unless $SLANGC says otherwise.
     bin.install_symlink libexec/"bin/slangc"
     bin.install_symlink prefix/"kitty.app/Contents/MacOS/kitty"
     bin.install_symlink prefix/"kitty.app/Contents/MacOS/kitten"

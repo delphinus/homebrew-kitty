@@ -95,6 +95,15 @@ class Kitty < Formula
 
     (buildpath/"kitty.app/Contents/Resources/kitty/shaders").install Dir["shaders/*"]
 
+    # NOTE: setup.py copies the source tree into the bundle through a filter
+    # that allows py, slang, glsl and so, which drops every .pipeline file that
+    # ships with kitty. A shader named on custom_shaders then loads with a
+    # constructed pipeline rather than the one upstream wrote for it, and the
+    # names that exist only as a pipeline (dim-inactive-windows, crt-blue) do
+    # not resolve at all.
+    (buildpath/"kitty.app/Contents/Resources/kitty/kitty/shaders/custom")
+      .install Dir["kitty/shaders/custom/*.pipeline"]
+
     # Custom shaders are compiled while kitty runs, and kitty looks slangc up in
     # PATH unless $SLANGC says otherwise. A kitty started from the Dock inherits
     # only /usr/bin:/bin:/usr/sbin:/sbin from launchd and so finds neither, and

@@ -14,6 +14,8 @@ on:
 
 permissions:
   contents: write
+  # To report the result of a workflow_dispatch run as a commit status.
+  statuses: write
 
 concurrency:
   group: bottle-${{ github.ref }}
@@ -25,6 +27,11 @@ env:
   # its PR, because a PR opened with GITHUB_TOKEN triggers no pull_request
   # workflow; that run must only build and test.
   PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+  # NOTE: The checks of a PR do not show a workflow_dispatch run, though it
+  # runs on the head of the PR. A commit status shows there, so such a run on
+  # a branch reports itself as one (the first and the last step).
+  REPORT: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
+  STATUS_CONTEXT: bottle (build and test)
 
 jobs:
   bottle:
@@ -33,6 +40,16 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
+      - name: Report the run as pending
+        if: env.REPORT == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=pending -f context="$STATUS_CONTEXT" \
+            -f description='Building from source and testing' \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
       # NOTE: Homebrew/actions renamed its default branch to main and deleted
       # master, so @master stopped resolving.
       - uses: Homebrew/actions/setup-homebrew@main
@@ -118,3 +135,14 @@ jobs:
             "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
           git commit -am 'kitty ${{ steps.formula.outputs.version }}: add arm64_tahoe bottle [skip ci]'
           git push origin HEAD:main
+
+      - name: Report the result
+        if: always() && env.REPORT == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state="$STATE" -f context="$STATUS_CONTEXT" \
+            -f description="Build from source and test: $STATE" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

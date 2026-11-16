@@ -19,6 +19,13 @@ concurrency:
   group: bottle-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # NOTE: Publish (build the bottle, upload it and write it back) only from
+  # main. upstream.yml runs this workflow by workflow_dispatch on the branch of
+  # its PR, because a PR opened with GITHUB_TOKEN triggers no pull_request
+  # workflow; that run must only build and test.
+  PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+
 jobs:
   bottle:
     # NOTE: macos-26 is the arm64 image. The bottle tag it produces is
@@ -66,7 +73,7 @@ jobs:
         run: brew audit --strict --online delphinus/kitty/kitty || true
 
       - name: Build the bottle
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         run: |
           brew bottle --json --no-rebuild \
             --root-url="https://github.com/${{ github.repository }}/releases/download/${{ steps.formula.outputs.tag }}" \
@@ -81,7 +88,7 @@ jobs:
           ls -la kitty-*
 
       - name: Upload the bottle to a release
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -94,7 +101,7 @@ jobs:
             kitty-[0-9]*.bottle.tar.gz
 
       - name: Write the checksums back into the formula
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

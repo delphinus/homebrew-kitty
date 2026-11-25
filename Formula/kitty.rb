@@ -9,7 +9,7 @@ class Kitty < Formula
   url "https://github.com/kovidgoyal/kitty/releases/download/v0.50.0/kitty-0.50.0.tar.xz"
   sha256 "01f20d0b253af0a7e041394a501adc83483f2eee01faf607a933c028343ab71a"
   license "GPL-3.0-only"
-  revision 1
+  revision 2
 
   livecheck do
     url "https://github.com/kovidgoyal/kitty/releases/latest"
@@ -105,18 +105,6 @@ class Kitty < Formula
     (buildpath/"kitty.app/Contents/Resources/kitty/kitty/shaders/custom")
       .install Dir["kitty/shaders/custom/*.pipeline"]
 
-    # NOTE: Compile the Python sources into the bundle now. setup.py does this
-    # only for the frozen build that upstream ships, so a kitty.app built here
-    # carries bare .py files and kitty writes __pycache__ into its own bundle
-    # as it runs. That breaks any signature that seals the bundle's resources,
-    # and a privacy permission such as Full Disk Access is refused while the
-    # signature is invalid. Reuse upstream's compile_python(): it writes
-    # unchecked-hash .pyc files for every optimization level, which Python
-    # never rewrites, so the bundle stays as installed.
-    system formula_opt_bin("python@3.14")/"python3.14", "-c",
-           "import setup, sys; setup.compile_python(sys.argv[1])",
-           buildpath/"kitty.app/Contents/Resources/kitty"
-
     # Custom shaders are compiled while kitty runs, and kitty looks slangc up in
     # PATH unless $SLANGC says otherwise. A kitty started from the Dock inherits
     # only /usr/bin:/bin:/usr/sbin:/sbin from launchd and so finds neither, and
@@ -133,6 +121,39 @@ class Kitty < Formula
     bin.install_symlink prefix/"kitty.app/Contents/MacOS/kitten"
     man1.install Dir["docs/_build/man/*.1"]
     (share/"terminfo").install Dir["terminfo/*"]
+  end
+
+  # NOTE: Compile the Python sources in the bundle. setup.py does this only for
+  # the frozen build that upstream ships, so a kitty.app built here carries
+  # bare .py files and kitty writes __pycache__ into its own bundle as it runs.
+  # That breaks any signature that seals the bundle's resources, and a privacy
+  # permission such as Full Disk Access is refused while the signature is
+  # invalid. This cannot happen in install, because `brew bottle` deletes
+  # every .pyc and __pycache__ in the keg (Keg#delete_pyc_files!), so a poured
+  # bottle would carry none.
+  #
+  # The arguments follow upstream's compile_python() in setup.py: every
+  # optimization level, unchecked-hash .pyc files, which Python never rewrites
+  # (and which come out the same if this runs again), and no
+  # shell-integration/ssh/bootstrap.py, which is sent to the remote rather than
+  # imported.
+  post_install_steps do
+    run "{{HOMEBREW_PREFIX}}/opt/python@3.14/bin/python3.14",
+        args:           ["-I", "-c", <<~'PYTHON', "{{HOMEBREW_PREFIX}}/opt/kitty/kitty.app/Contents/Resources/kitty"],
+          import compileall, py_compile, re, sys
+          ok = compileall.compile_dir(
+              sys.argv[1],
+              rx=re.compile(r".*/shell-integration/ssh/bootstrap\.py"),
+              force=True,
+              optimize=(0, 1, 2),
+              quiet=1,
+              invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+              ddir="",
+          )
+          sys.exit(0 if ok else 1)
+        PYTHON
+        writable_paths: ["kitty.app/Contents/Resources/kitty"],
+        writable_base:  :prefix
   end
 
   def caveats

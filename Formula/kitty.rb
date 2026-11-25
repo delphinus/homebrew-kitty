@@ -9,6 +9,7 @@ class Kitty < Formula
   url "https://github.com/kovidgoyal/kitty/releases/download/v0.50.0/kitty-0.50.0.tar.xz"
   sha256 "01f20d0b253af0a7e041394a501adc83483f2eee01faf607a933c028343ab71a"
   license "GPL-3.0-only"
+  revision 1
 
   livecheck do
     url "https://github.com/kovidgoyal/kitty/releases/latest"
@@ -103,6 +104,18 @@ class Kitty < Formula
     # not resolve at all.
     (buildpath/"kitty.app/Contents/Resources/kitty/kitty/shaders/custom")
       .install Dir["kitty/shaders/custom/*.pipeline"]
+
+    # NOTE: Compile the Python sources into the bundle now. setup.py does this
+    # only for the frozen build that upstream ships, so a kitty.app built here
+    # carries bare .py files and kitty writes __pycache__ into its own bundle
+    # as it runs. That breaks any signature that seals the bundle's resources,
+    # and a privacy permission such as Full Disk Access is refused while the
+    # signature is invalid. Reuse upstream's compile_python(): it writes
+    # unchecked-hash .pyc files for every optimization level, which Python
+    # never rewrites, so the bundle stays as installed.
+    system formula_opt_bin("python@3.14")/"python3.14", "-c",
+           "import setup, sys; setup.compile_python(sys.argv[1])",
+           buildpath/"kitty.app/Contents/Resources/kitty"
 
     # Custom shaders are compiled while kitty runs, and kitty looks slangc up in
     # PATH unless $SLANGC says otherwise. A kitty started from the Dock inherits

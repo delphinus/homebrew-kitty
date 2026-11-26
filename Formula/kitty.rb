@@ -44,17 +44,18 @@ class Kitty < Formula
     sha256 "92da7ab6226dd951037cd85397f830ae78fe40fbbb8928882e0b2654e468fdd4"
   end
 
-  # Decide the number of cells a symbol needs from its advance as well as its
-  # ink, so that non-mono Nerd Font glyphs are not shrunk into one cell.
+  # Center a private use symbol in the cells it is rendered over: kitty meant to
+  # but passed the flag to the preceding run instead.
   patch do
-    url "https://github.com/delphinus/kitty/commit/b787020b92e2f4ef7a7cf1147ebfd963de73637d.patch?full_index=1"
-    sha256 "729b97f0522c60103f753d8915f266047882d121151d3ed0a0715373b9339f44"
+    url "https://github.com/delphinus/kitty/commit/12ac10533d186cfaa4abb2eabaf604962b47fcdb.patch?full_index=1"
+    sha256 "b6fdc7bc509af2b4ed8b4229cdf64d899710dcac9e08ad15086235cdfd3b99c6"
   end
 
-  # Move rather than shrink a glyph whose ink already fits the cells available.
+  # Give a private use symbol the cells of its advance as well as of its ink,
+  # so that a narrow icon in a square advance is not put in a single cell.
   patch do
-    url "https://github.com/delphinus/kitty/commit/156480852c698d3bfe5950ec7cb3a632db877378.patch?full_index=1"
-    sha256 "b958b8c3a21d922572c6760dfd83dbd89b7feb0037d0ad79403131eb12fbb7b9"
+    url "https://github.com/delphinus/kitty/commit/ead887c367f5c32bba7fc3bd132e4aab702d24ec.patch?full_index=1"
+    sha256 "520b2c2a21b46e380d2fb02c510baeac1bdbc18b7930169c715b435991e54d86"
   end
 
   def install

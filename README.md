@@ -12,16 +12,14 @@ ln -sfn "$(brew --prefix)/opt/kitty/kitty.app" ~/Applications/kitty.app
 
 ## 何を直しているか
 
-**素の kitty は、SF Mono Square のような non-mono 系の Nerd Font でアイコンを描くと、インクの細いものだけを 0.67〜0.9 倍に縮小し、さらに左へ寄せてしまう。** この tap はそれを直す 2 つのパッチを当てる。
-
-kitty は 1 つのグリフに何セル割り当てるかを**インクの外接矩形だけ**で決める。non-mono 系の Nerd Font は全グリフに 2 セルぶんの advance を与えてアートワークをその中央に置くので、インクが 1 セルに収まるグリフは 1 セル扱いになり、2 セルの中央にあるインクが 1 セルからはみ出すぶんフォントサイズを縮められる。`advance` は一切読まれない。
+kitty は、私用領域 (PUA) の文字の後ろに空白があると、その空白を取り込んでアイコンを複数のセルに描く。このとき何セル使うかを**インクの外接矩形だけ**で決め、描く位置も**中央に寄せていない**。そのため、SF Mono Square や kitty 同梱の Symbols Nerd Font Mono のように、アイコンを正方形の advance の中央に置くフォントでは、インクの細いアイコン (`nf-md-flash` U+F0241 など) だけが 1 セルに入れられ、太いアイコンは 2 セルの左に寄る。この tap は 2 つのパッチでそれを直す。
 
 | パッチ | 内容 |
 |---|---|
-| [`b787020`](https://github.com/delphinus/kitty/commit/b787020b92e2f4ef7a7cf1147ebfd963de73637d) | セル数をインクだけでなく **advance も見て**決める (`core_text.m` / `freetype.c`) |
-| [`1564808`](https://github.com/delphinus/kitty/commit/156480852c698d3bfe5950ec7cb3a632db877378) | インクがセルに収まる単一グリフは、**縮小せずに位置をずらす** (`core_text.m`) |
+| [`12ac105`](https://github.com/delphinus/kitty/commit/12ac10533d186cfaa4abb2eabaf604962b47fcdb) | 空白を取り込んで描くアイコンを、**インクの範囲で中央に置く** (`fonts.c`)。本家にも中央寄せの意図はあるが、フラグが手前の文字列のほうに渡っている |
+| [`ead887c`](https://github.com/delphinus/kitty/commit/ead887c367f5c32bba7fc3bd132e4aab702d24ec) | 私用領域の文字のセル数を、インクだけでなく **advance も見て**決める (`fonts.c` / `core_text.m` / `freetype.c`) |
 
-Powerline セパレータや進捗バーのような 1 セル advance のグリフは advance が 1 セルなので影響を受けない。パッチの由来と実測値は [delphinus/kitty](https://github.com/delphinus/kitty) の `fix/nerd-font-symbol-cell-sizing` ブランチを参照。
+Nerd Font を当てた等幅フォント (`Nerd Font` と `Nerd Font Mono`) は advance が 1 セルなので、2 本目では何も変わらない (1 本目で、はみ出した太いアイコンが 2 セルの中央に寄るだけ)。Powerline のセパレータや進捗バーは kitty が自前で描くので、どちらの影響も受けない。直後に文字があって 1 セルに描くときの縮小は本家の 0.51.0 で直ったので、以前当てていた「縮めずに位置をずらす」パッチ (`1564808`) は外した。
 
 **これは upstream の方針と衝突する類の変更ではなく、描画の正しさの修正**として上流に出すつもりのもの。マージされたらこの tap は畳む。
 

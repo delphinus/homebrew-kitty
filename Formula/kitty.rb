@@ -16,6 +16,11 @@ class Kitty < Formula
     regex(%r{tag/v?(\d+(?:\.\d+)+)}i)
   end
 
+  bottle do
+    root_url "https://github.com/delphinus/homebrew-kitty/releases/download/kitty-0.51.1"
+    sha256 cellar: :any, arm64_tahoe: "055adc0f4da018e4a9ba936b73a3e2ef800db33eacca739eb3ab1236cf873020"
+  end
+
   depends_on "go" => :build
   depends_on "pkgconf" => :build
   depends_on "simde" => :build
